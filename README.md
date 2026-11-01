@@ -152,81 +152,25 @@ flowchart TD
 
 ---
 
-## 服務介面契約規範 (Interfaces)
+## 核心介面契約規範 (Interfaces)
 
-| 模組 | 介面名稱 | 檔案路徑 | 實作類別 | 定義之方法與屬性 | 職責說明 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Save** | `ISaveService` | `Save/ISaveService.cs` | `JsonSaveService` | `Save()`, `Load()`, `Delete()` | 抽象化底層存檔讀寫行為，分離檔案 I/O 細節。 |
-| **Save** | `ISaveManager` | `Save/ISaveManager.cs` | `SaveManager` | `CurrentSaveData`, `CommitSave()`, `ResetSaveData()` | 提供存檔快取存取與強制存檔介面。 |
-| **Gameplay** | `IQuizService` | `Gameplay/IQuizService.cs` | `GameManager` | `CurrentProgress`, `TotalQuestions`, `VerifyAnswer()`, `AdvanceProgress()` | 定義問答驗證與關卡進度推進行為。 |
-| **Audio** | `IAudioService` | `Audio/IAudioService.cs` | `AudioManager` | `PlayButtonSound()`, `PlayCorrectAnswerSound()`, `SetMixerVolume()` | 定義音效播放與 AudioMixer 音量設定行為。 |
-
----
-
-## 場景節點拓撲與組件配置 (Scene Hierarchy & Component Setup)
-
-```text
-Scene Hierarchy (Gameplay)
-├── [Core]
-│   ├── [GameManager]               <-- 掛載 Gameplay/GameManager.cs (Inspector: 拖入 QuizData 資產)
-│   ├── [SaveManager]               <-- 掛載 Save/SaveManager.cs (Inspector: Auto Save Interval 設定秒數)
-│   └── [AudioManager]              <-- 掛載 Audio/AudioManager.cs (Inspector: 拖入 AudioMixer、AudioSource 組件)
-├── [AR Session]
-│   ├── ARCamera                    (Vuforia AR 攝影機)
-│   └── ImageTarget_Ending          <-- 掛載 AR/AREndingModelController.cs
-│       └── Shrine3DModel (預設隱藏)     (Vuforia DefaultObserverEventHandler:
-│                                        OnTargetFound -> AREndingModelController.OnTargetFound
-│                                        OnTargetLost  -> AREndingModelController.OnTargetLost)
-└── Canvas                          <-- 掛載 UI/UIManager.cs
-    ├── MainMenuPanel
-    ├── GameplayPanel
-    │   ├── MapPanel
-    │   ├── SceneryButtons (0~4)
-    │   └── ProgressText
-    ├── QuizPanels
-    │   ├── QuizPanel_0             <-- 掛載 UI/QuizView.cs (Scenery Index = 0, QuizData = QuizData_0)
-    │   ├── QuizPanel_1             <-- 掛載 UI/QuizView.cs (Scenery Index = 1, QuizData = QuizData_1)
-    │   └── ...
-    ├── SettingsPanel
-    │   └── MasterVolumeSlider      <-- 掛載 Audio/VolumeSlider.cs (Audio Parameter = "Master")
-    └── HistoryPhotoPanel
-        └── PhotoImage              <-- 掛載 UI/ImageZoom.cs (需掛於具備 RectTransform 之圖片)
-```
+| 介面契約 (Interface) | 實作類別 (Implementation) | 職責說明 |
+| :--- | :--- | :--- |
+| `IQuizService` | `GameManager` | 維護歷史景點探索進度條、作答核對與過關推進 |
+| `ISaveManager` | `SaveManager` | 存檔快取管理、定時髒標記排程與退出時安全落盤 |
+| `ISaveService` | `JsonSaveService` | 抽象化磁碟序列化行為，負責 JSON 檔案存取 |
+| `IAudioService` | `AudioManager` | 集中調度按鈕音效、答對音效與 AudioMixer 音量控制 |
 
 ---
 
-## 專案檔案目錄結構
+## 模組架構與檔案拓撲 (Architecture Topology)
 
 ```text
-├── README.md
-├── AR/
-│   └── AREndingModelController.cs    # 結算展示 3D 神社模型控制器 (Vuforia 聯動)
-├── Audio/
-│   ├── Interfaces/
-│   │   └── IAudioService.cs          # 音訊服務介面契約
-│   ├── AudioManager.cs               # AudioMixer 控制與音效播放 (實作 IAudioService)
-│   └── VolumeSlider.cs               # UI 音量調節滑桿綁定
-├── Gameplay/
-│   ├── Interfaces/
-│   │   └── IQuizService.cs           # 問答與進度仲裁介面
-│   ├── GameManager.cs                # 核心玩法流程控制器 (實作 IQuizService)
-│   └── QuizData.cs                   # 歷史問答 ScriptableObject 題庫
-├── Infrastructure/
-│   ├── EventBus/
-│   │   ├── EventBus.cs               # 泛型事件匯流排實作
-│   │   └── Events/
-│   │       └── GameEvents.cs         # 領域事件定義 (進度、答題、音量、按鈕)
-│   └── UI/
-│       └── Gradient/                 # uGUI 漸層輔助渲染組件庫
-├── Save/
-│   ├── Interfaces/
-│   │   ├── ISaveManager.cs           # 存檔管理器介面
-│   │   └── ISaveService.cs           # 泛型持久化驅動抽象介面
-│   ├── SaveManager.cs                # 存檔狀態快取與落盤管理 (實作 ISaveManager，髒標記)
-│   ├── JsonSaveService.cs            # JSON 檔案序列化驅動 (實作 ISaveService)
-│   └── GameSaveData.cs               # 存檔資料模型
-└── UI/
-    ├── UIManager.cs                  # 介面流程控制與導航面板切換
-    ├── QuizView.cs                   # 問答 UI 單一責任視圖
-    └── ImageZoom.cs                  # 行動裝置雙指手勢縮放與邊界鉗制
+temporal-shrine/
+├── AR/                 # Vuforia 圖卡追蹤與通關結算 3D 模型旋轉展示 (AREndingModelController)
+├── Gameplay/           # 景點探索流程與 ScriptableObject 問答題庫 (GameManager, QuizData)
+├── Infrastructure/     # 泛型 EventBus 事件匯流排與 UI Gradient 漸層輔助
+├── Save/               # 策略模式本地 JSON 存檔 (SaveManager, JsonSaveService, GameSaveData)
+├── Audio/              # AudioMixer 控制與音量滑桿綁定 (AudioManager, VolumeSlider)
+└── UI/                 # 行動端手勢縮放、導覽地圖面板與問答視圖 (UIManager, QuizView, ImageZoom)
 ```
